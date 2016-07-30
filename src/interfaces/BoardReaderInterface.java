@@ -1,4 +1,4 @@
-package reader;
+package interfaces;
 
 import java.io.File;
 
