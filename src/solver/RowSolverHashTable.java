@@ -11,20 +11,31 @@ import interfaces.RowSolverInterface;
 
 public class RowSolverHashTable implements RowSolverInterface {
 
-	private class RowWithUnsolvability {
+	// CLASS: RowWrapper
+	// DEFINITION: Wrapper class for row hash table. Instantiated RowWrapper
+	//  object with null row represents a found invalid solution. Null RowWrapper
+	//  object represents solution not investigated yet.
+	private class RowWrapper {
 		public Row row;
 
-		public RowWithUnsolvability(Row row) {
+		public RowWrapper(Row row) {
 			this.row = row;
 		}
 	}
 
-	public static final int CELL_HASH_POWER = 4;
+	// Because we have three states, we only need a base 3 number (converted to
+	// decimal) to get a unique row
+	public static final int CELL_HASH_POWER = 3;
 
-	private Hashtable<String, RowWithUnsolvability> rowTable;
+	private Hashtable<String, RowWrapper> rowTable;
+	private int hashTableFinds = 0;
+
+	///////////////
+	// Constructors
+	///////////////
 
 	public RowSolverHashTable() {
-		rowTable = new Hashtable<String, RowWithUnsolvability>();
+		rowTable = new Hashtable<String, RowWrapper>();
 	}
 
 	/////////////////////////////
@@ -32,102 +43,16 @@ public class RowSolverHashTable implements RowSolverInterface {
 	/////////////////////////////
 
 	public Row SolveRow(Row unsolvedRow) {
-
-		// Look up previous solved rows
-		String rowKey = rowToHashKey(unsolvedRow);
-		RowWithUnsolvability solvedRowObject = rowTable.get(rowKey);
-		if (solvedRowObject != null) {
-			return solvedRowObject.row;
-		} else {
-			solvedRowObject = new RowWithUnsolvability(new Row(unsolvedRow.rowSize()));
-		}
-
-		// If we have an exact fit of numbers and open spaces, make sure we can
-		// add it and then return that row
-		int spacesNeeded = unsolvedRow.SpacesNeeded();
-		if (spacesNeeded > unsolvedRow.rowSize()) {
-			return null;
-		} else if (unsolvedRow.rowSize() == spacesNeeded) {
-			return solveExactSizedRow(unsolvedRow);
-		} else if (unsolvedRow.NumbersCount() == 1) {
-			return solveNonExactRowOneNumber(unsolvedRow);
-		} else {
-			// Solve subproblem of taking the first number and then solving
-			// second through last number subproblem
-			int firstNumber = unsolvedRow.getNumbers()[0];
-			Row fullSolvedRow = null; // row that will contain all possible
-										// solutions
-			boolean foundGoodSolution = false;
-
-			outerIteration: for (int index = 0; index <= unsolvedRow.rowSize() - spacesNeeded; index++) {
-				Row solvedRowIteration = new Row(unsolvedRow.rowSize());
-
-				// Check that we can fit the first number in here before solving
-				// subproblems, add in cell statuses as necessary
-				for (int i = 0; i < index + firstNumber + 1; i++) {
-					if (i < index || i == index + firstNumber) {
-						// Unmarked
-						if (unsolvedRow.getCellStatus(i) == CellStatus.MARKED) {
-							continue outerIteration;
-						} else {
-							solvedRowIteration.setCellStatus(i, CellStatus.UNMARKED);
-						}
-					} else if (i < index + firstNumber) {
-						// Marked
-						if (unsolvedRow.getCellStatus(i) == CellStatus.UNMARKED) {
-							continue outerIteration;
-						} else {
-							solvedRowIteration.setCellStatus(i, CellStatus.MARKED);
-						}
-					}
-				}
-
-				if (index + firstNumber + 1 >= unsolvedRow.rowSize() - 1) {
-					continue outerIteration;
-				}
-
-				Row partialRow = unsolvedRow.getSubRow(index + firstNumber + 1, unsolvedRow.rowSize() - 1,
-						Arrays.copyOfRange(unsolvedRow.getNumbers(), 1, unsolvedRow.NumbersCount()));
-
-				Row partialSolvedRow = SolveRow(partialRow);
-
-				if (partialSolvedRow != null) {
-					for (int i = index + firstNumber + 1; i < unsolvedRow.rowSize(); i++) {
-						solvedRowIteration.setCellStatus(i,
-								partialSolvedRow.getCellStatus(i - firstNumber - 1 - index));
-					}
-				} else {
-					continue outerIteration;
-				}
-
-				foundGoodSolution = true;
-
-				// Add results to solvedRowObject
-				if (fullSolvedRow == null) {
-					fullSolvedRow = solvedRowIteration;
-				} else {
-					for (int i = 0; i < solvedRowIteration.rowSize(); i++) {
-						if (fullSolvedRow.getCellStatus(i) != solvedRowIteration.getCellStatus(i)) {
-							fullSolvedRow.setCellStatus(i, CellStatus.UNSOLVED);
-						}
-					}
-				}
-			}
-
-			if (!foundGoodSolution) {
-				solvedRowObject.row = null;
-			} else {
-				solvedRowObject.row = fullSolvedRow;
-			}
-			rowTable.put(rowKey, solvedRowObject);
-			return solvedRowObject.row;
-		}
-
+		return SolveRowBranch(unsolvedRow, 1);
 	}
 
-	/////////////////
-	// Public methods
-	/////////////////
+	//////////////////////
+	// Getters and setters
+	//////////////////////
+
+	public int getHashTableFinds() {
+		return hashTableFinds;
+	}
 
 	public boolean tableHasKey(String key) {
 		return rowTable.containsKey(key);
@@ -137,6 +62,123 @@ public class RowSolverHashTable implements RowSolverInterface {
 		return rowTable.size();
 	}
 
+	/////////////////
+	// Public methods
+	/////////////////
+
+	// These methods are all public so that they can be tested with unit tests
+
+	// METHOD: SolveRowBranch
+	// DEFINITION: Main branch for attempting to solve a row problem. Will try to pick the simplest of three methods if a solution for this row has not previously been found:
+	//  1. If we have exactly as many spaces as the numbers need, see if they fit nicely
+	//  2. If we have more than enough space and one number, find all the spots it can fit
+	//  3. Otherwise, recursively solve subproblems taking out the first number and shifting around for valid solutions
+	// RETURNS: A solved (as much as possible) row
+	// THROWS: None
+	public Row SolveRowBranch(Row unsolvedRow, int recursionLevel) {
+		RowWrapper solvedRowObject = rowTable.get(rowToHashKey(unsolvedRow));
+		if (solvedRowObject != null) {
+			hashTableFinds++;
+			return solvedRowObject.row;
+		}
+
+		int spacesNeeded = unsolvedRow.SpacesNeeded();
+		if (spacesNeeded > unsolvedRow.rowSize()) {
+			return null;
+		} else if (unsolvedRow.rowSize() == spacesNeeded) {
+			return solveExactSizedRow(unsolvedRow);
+		} else if (unsolvedRow.NumbersCount() == 1) {
+			return solveNonExactRowOneNumber(unsolvedRow);
+		} else {
+			return solveRowRecursiveIteration(unsolvedRow, recursionLevel);
+		}
+	}
+
+	// METHOD: solveRowRecursiveIteration
+	// DEFINITION: Recursive solver that will iterate all possible positions for the first number in this row and then solve the subproblems after that number
+	// RETURNS: A solved (as much as possible) row
+	// THROWS: None
+	public Row solveRowRecursiveIteration(Row unsolvedRow, int recursionLevel) {
+		int firstNumber = unsolvedRow.getNumbers()[0];
+		Row fullSolvedRow = null; // row that will contain all possible
+									// solutions
+		String rowKey = rowToHashKey(unsolvedRow);
+		RowWrapper solvedRowObject = new RowWrapper(new Row(unsolvedRow));
+		boolean foundGoodSolution = false;
+
+		// Iterate over each shifted potential first number. We can get an
+		// invalid solution (and hit a continue statement) in one of two
+		// ways: either the first number's position is invalid with marked
+		// or unmarked cells, or the subproblem solved on the right half is
+		// invalid
+
+		// If we hit a valid solution, update the full solution over all
+		// iterations
+		outerIteration: for (int index = 0; index <= unsolvedRow.rowSize() - unsolvedRow.SpacesNeeded(); index++) {
+			Row solvedRowIteration = new Row(unsolvedRow.rowSize(), unsolvedRow.getNumbers());
+			int partialRowBeginIndex = index + firstNumber + 1;
+
+			// Check that we can fit the first number in here before solving
+			// subproblems, add in cell statuses as necessary
+			for (int i = 0; i < partialRowBeginIndex; i++) {
+				if (i < index || i == index + firstNumber) {
+					// Unmarked
+					if (unsolvedRow.getCellStatus(i) == CellStatus.MARKED) {
+						continue outerIteration;
+					} else {
+						solvedRowIteration.setCellStatus(i, CellStatus.UNMARKED);
+					}
+				} else if (i < index + firstNumber) {
+					// Marked
+					if (unsolvedRow.getCellStatus(i) == CellStatus.UNMARKED) {
+						continue outerIteration;
+					} else {
+						solvedRowIteration.setCellStatus(i, CellStatus.MARKED);
+					}
+				}
+			}
+
+			Row partialRow = unsolvedRow.getSubRow(partialRowBeginIndex, unsolvedRow.rowSize() - 1,
+					Arrays.copyOfRange(unsolvedRow.getNumbers(), 1, unsolvedRow.NumbersCount()));
+
+			Row partialSolvedRow = SolveRowBranch(partialRow, recursionLevel + 1);
+
+			if (partialSolvedRow != null) {
+				for (int i = partialRowBeginIndex; i < unsolvedRow.rowSize(); i++) {
+					solvedRowIteration.setCellStatus(i, partialSolvedRow.getCellStatus(i - partialRowBeginIndex));
+				}
+			} else {
+				continue outerIteration;
+			}
+
+			foundGoodSolution = true;
+
+			if (fullSolvedRow == null) {
+				fullSolvedRow = solvedRowIteration;
+			} else {
+				for (int i = 0; i < fullSolvedRow.rowSize(); i++) {
+					//If two valid solutions differ, the only possible result is that this space is still unsolved
+					if (fullSolvedRow.getCellStatus(i) != solvedRowIteration.getCellStatus(i)) {
+						fullSolvedRow.setCellStatus(i, CellStatus.UNSOLVED);
+					}
+				}
+			}
+		}
+
+		if (!foundGoodSolution) {
+			solvedRowObject.row = null; //since we've initialized fullSolvedRow, we want to save null if there is no solution
+		} else {
+			solvedRowObject.row = fullSolvedRow;
+		}
+		rowTable.put(rowKey, solvedRowObject);
+		return solvedRowObject.row;
+	}
+
+	// METHOD: solveNonExactRowOneNumber
+	// DEFINITION: Solver that will look at first (and hopefully only) number in this row and try to iterate it over all possible spots. Will perform a number of likely
+	//  inefficient checks to validate solution, but should still run in O(n) time where n = unsolvedRow.RowSize(), with a high multiplier on n.
+	// RETURNS: A solved (as much as possible) row
+	// THROWS: None
 	public Row solveNonExactRowOneNumber(Row unsolvedRow) {
 		int number = unsolvedRow.getNumbers()[0];
 		int counter = 0;
@@ -146,7 +188,7 @@ public class RowSolverHashTable implements RowSolverInterface {
 		Integer largestMarkedIndex = null;
 
 		String rowKey = rowToHashKey(unsolvedRow);
-		RowWithUnsolvability solvedRowObject = new RowWithUnsolvability(new Row(unsolvedRow));
+		RowWrapper solvedRowObject = new RowWrapper(new Row(unsolvedRow));
 
 		ArrayList<Integer> alreadyMarkedBucked = new ArrayList<Integer>();
 
@@ -249,6 +291,10 @@ public class RowSolverHashTable implements RowSolverInterface {
 		return solvedRowObject.row;
 	}
 
+	// METHOD: solveExactSizedRow
+	// DEFINITION: Solver that will iterate over row and check that each cell is not incorrectly marked/unmarked (while also marking correctly)
+	// RETURNS: A solved (as much as possible) row
+	// THROWS: None
 	public Row solveExactSizedRow(Row unsolvedRow) {
 		// Should be checking before entering here, but a good check to use
 		if (unsolvedRow.SpacesNeeded() != unsolvedRow.rowSize()) {
@@ -256,7 +302,7 @@ public class RowSolverHashTable implements RowSolverInterface {
 		}
 
 		String rowKey = rowToHashKey(unsolvedRow);
-		RowWithUnsolvability solvedRowObject = new RowWithUnsolvability(new Row(unsolvedRow.rowSize()));
+		RowWrapper solvedRowObject = new RowWrapper(new Row(unsolvedRow.rowSize(), unsolvedRow.getNumbers()));
 
 		int numberCount = 0;
 		int counter = unsolvedRow.getNumbers()[numberCount];
@@ -286,10 +332,11 @@ public class RowSolverHashTable implements RowSolverInterface {
 		return solvedRowObject.row;
 	}
 
-	/////////////////
-	// Private methods
-	/////////////////
-
+	// METHOD: rowToHashKey
+	// DEFINITION: Determines a unique key for a row given its size, numbers, and current cell statuses. Cell statuses will be turned into a number using base 3,
+	//  where everything else will simply be written and separated by spaces.
+	// RETURNS: A unique string key for a given row in the form [rowSize + " " + [list of row numbers separated by spaces] + " " + base 3 value of cell statuses
+	// THROWS: Will probably throw an overflow exception if the calculated cell values gets too high. At row size 20 this is not currently a problem.
 	public String rowToHashKey(Row row) {
 		String rowNumbers = "";
 		for (int i = 0; i < row.NumbersCount(); i++) {

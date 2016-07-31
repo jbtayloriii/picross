@@ -2,6 +2,9 @@ package entities;
 
 public class Cell {
 
+	// ENUM: CellStatus
+	// DEFINITION: Contains whether a cell is marked, unmarked, or unknown
+	// VALUES(int value): UNSOLVED(0), MARKED(1), UNMARKED(2)
 	public enum CellStatus {
 		UNSOLVED(0), MARKED(1), UNMARKED(2);
 

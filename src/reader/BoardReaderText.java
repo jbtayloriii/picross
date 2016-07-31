@@ -8,8 +8,6 @@ import entities.Board;
 import interfaces.BoardReaderInterface;
 
 public class BoardReaderText implements BoardReaderInterface {
-
-	
 	private Board currentBoard;
 	
 	@Override
@@ -61,5 +59,4 @@ public class BoardReaderText implements BoardReaderInterface {
 	public Board getBoard() {
 		return currentBoard;
 	}
-
 }

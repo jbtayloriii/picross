@@ -2,8 +2,8 @@ package entities;
 
 public class Board {
 
-	private int[][] rowNumbers; // first array is which row, second array is
-								// array of numbers
+	private int[][] rowNumbers; // first array is row index, second array is
+								// list of numbers
 	private int[][] columnNumbers;
 	private Cell[][] board; // board[1][2] is row 1, column 2
 	private int columns;
@@ -51,12 +51,10 @@ public class Board {
 	}
 
 	public Row getColumn(int columnIndex) {
-
 		Cell[] retColumn = new Cell[board.length];
 		for (int i = 0; i < board.length; i++) {
 			retColumn[i] = board[i][columnIndex];
 		}
-
 		return new Row(retColumn, columnNumbers[columnIndex]);
 	}
 
@@ -77,7 +75,6 @@ public class Board {
 			throw new IllegalArgumentException("The row you're trying to replace has a different number of cells");
 		}
 		board[rowIndex] = newRow.getCells();
-
 	}
 
 	public void replaceColumn(int columnIndex, Row newColumn) throws IllegalArgumentException {
@@ -89,18 +86,19 @@ public class Board {
 			board[i][columnIndex] = columnArray[i];
 		}
 	}
-	
+
 	// METHOD: toString
-	// DEFINITION: Returns a string representation of this board. Rows will be broken by newlines
+	// DEFINITION: Returns a string representation of this board. Rows will use
+	// their toString() value and will be broken by newlines.
 	// RETURNS: A string representation of this board
 	// THROWS: None
 
-	@Override public String toString() {
+	@Override
+	public String toString() {
 		String returnedString = "";
 		for (int i = 0; i < rows; i++) {
 			Row nextRow = getRow(i);
 			returnedString += nextRow.toString() + "\n";
-			//returnedString += getRow(i).toString() + "\n";
 		}
 		return returnedString;
 	}
