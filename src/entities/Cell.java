@@ -3,7 +3,7 @@ package entities;
 public class Cell {
 
 	public enum CellStatus {
-		UNSOLVED(0), MARKED(1), UNMARKED(2), BOTH(3);
+		UNSOLVED(0), MARKED(1), UNMARKED(2);
 
 		private int value;
 
