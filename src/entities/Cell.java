@@ -1,47 +1,72 @@
 package entities;
 
 public class Cell {
-	
-	public enum cellStatus {
-		statusUnsolved, statusUnmarked, statusMarked
-	}
-	
-	public enum potentialCellStatus {
-		potentialStatusUnmarked, potentialStatusMarked, potentialStatusBoth, potentialStatusNothing
-	}
-	
 
-	
-	private cellStatus status;
-	private potentialCellStatus potentialStatus;
+	// ENUM: CellStatus
+	// DEFINITION: Contains whether a cell is marked, unmarked, or unknown
+	// VALUES(int value): UNSOLVED(0), MARKED(1), UNMARKED(2)
+	public enum CellStatus {
+		UNSOLVED(0), MARKED(1), UNMARKED(2);
+
+		private int value;
+
+		CellStatus(int value) {
+			this.value = value;
+		}
+
+		public int getValue() {
+			return this.value;
+		}
+
+		public static CellStatus fromInt(int i) {
+			for (CellStatus b : CellStatus.values()) {
+				if (b.getValue() == i) {
+					return b;
+				}
+			}
+			return null;
+		}
+	}
+
+	private CellStatus status;
+
+	///////////////
+	// Constructors
+	///////////////
+
+	public Cell(Cell cell) {
+		this.status = cell.status;
+	}
 
 	public Cell() {
-		this.status = cellStatus.statusUnsolved;
-		this.potentialStatus = potentialCellStatus.potentialStatusNothing;
-	}
-	
-	public potentialCellStatus getPotentialStatus() {
-		return potentialStatus;
-	}
-	
-	public void setPotentialStatus(potentialCellStatus newStatus) {
-		potentialStatus = newStatus;
+		this.status = CellStatus.UNSOLVED;
 	}
 
-	public cellStatus getStatus() {
+	//////////////////////
+	// Getters and setters
+	//////////////////////
+
+	public CellStatus getStatus() {
 		return status;
 	}
 
-
-	public void setStatus(cellStatus status) {
+	public void setStatus(CellStatus status) {
 		this.status = status;
 	}
-	
-	
+
+	////////////////
+	// Public Methods
+	////////////////
+
+	// METHOD: toString
+	// DEFINITION: Returns a string representation of this cell.
+	// RETURNS: "." for an unmarked cell, "X" for a marked cell, "?" otherwise
+	// THROWS: None
+	@Override
 	public String toString() {
-		if (status == cellStatus.statusUnmarked) {
+		if (status == CellStatus.UNMARKED) {
 			return ".";
-		} else if (status == cellStatus.statusMarked) {
+		} else if (status == CellStatus.MARKED) {
 			return "X";
 		} else {
 			return "?";

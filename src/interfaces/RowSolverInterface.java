@@ -1,9 +1,7 @@
-package solver;
+package interfaces;
 
-import entities.*;
+import entities.Row;
 
 public interface RowSolverInterface {
-
-	
 	public Row SolveRow(Row unsolvedRow);
 }
