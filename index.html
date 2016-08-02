@@ -1,1 +1,71 @@
-Hello world, this is picross
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta charset="utf-8" />
+</head>
+<body>
+    <div id="introduction" class="mainSection">
+        <h1>Introduction</h1>
+        <p>Welcome to my quick site on this picross solver. I'm going to assume that you are familiar with picross (nonogram, hanjie, griddlers). If not, I'd recommend looking over the <a href="https://en.wikipedia.org/wiki/Nonogram">Wikipedia</a> article on it.</p>
+        <p>The main algorithm is separated into two pieces, the board solver and the row solver. There are also classes for representing a board, row, and cell, as well as a file reader. There are some units tests as well, but there is not full test coverage for all the classes/methods.</p>
+    </div>
+    <div id="BoardSolverQueue" class="mainSection">
+        <h1>Board Solver</h1>
+        <p>
+            The board solver has two main pieces: a private class used in queueing up lines to solve, and SolveBoard() for iterating over the rows and columns in a board. RowQueueObject holds a line and a boolean to determine whether this line is horizontal (a row) or vertical (a column).
+            The wording for the Row class is poor and could be changed, but in general a "Row" (along with the Row class) represents a line of cells as well as the numbers in that line. A "row" or "column" will additionally denote a direction the line faces.
+            I'll use the term "line" for talking about the Row class to prevent confusion here; the class name could be updated through. I decided to not store directional state in the Row class because a line doesn't need to understand whether it is facing horizontally or vertically to be solved. I could see an argument for moving it in there though.
+            The method in BoardSolverQueue, SolveBoard, begins by initializing the queue and putting in all the rows and columns in the loaded board. It will then pull out a single line, attempt to make progress on that line using a RowSolver, and update the board as necessary.
+            If a row has changed, we will queue up all the columns that have been changed in this row. Similarly, if a column makes progress and updates, we will add in all the rows that now have changed. We will then loop until we run out of rows/columns to solve.
+        </p>
+        <p>
+            There are a few assumptions that this loop makes. First, we assume that the line solver will only make forward progress. If we begin returning line where either marked or unmarked cells turn to unsolved cells, we could get in an infinite loop where we continue to queue rows and columns that toggle between an unsolved and solved state for a given cell.
+            This could be alleviated by checking that the solved [row/columns]'s cells are not "unsolved" before queueing up another [column/row].
+            Additionally, this algorithm will not always fully solve a problem. There are some problems that do not have a single solution (for example, a 2x2 puzzle with a single 1 in each column and row could be a diagonal in either direction). I'd guess that there are also puzzles where you could potentially have to try a certain valid solution for a row that would then invalidate columns, but the columns aren't invalid if that row's cell remains unsolved (and wouldn't be solved by a single row alg).
+            I'm not 100% on this though. Either way, this algorithm (assuming the row solver is good enough to do its job) will get us 99% of the way.
+        </p>
+    </div>
+    <div id="RowSolverHashTable" class="mainSection">
+        <h1>Row Solver</h1>
+        <p>
+            The row solver works in three ways. We will attempt to solve a couple of "simple" problems before resorting to solving subproblems where we iterate the first number in the line and build a solution on that. We will return null if a line (or line subproblem) has no solution, and will otherwise return that line.
+            There is also a wrapper class used to memoize particular solutions that we have already solved, though a particular solution is unique to that line size, set of numbers, and line state (meaning that changing any one of those things will constitute a different row and entry in the hash table).
+            We will be getting to a level of recursion up to the number of "numbers" in a line - 1 though, so I'd say that this is somewhat useful to reduce subproblems we hit.
+        </p>
+        <p>
+            The first problem we attempt to solve is if we have exactly enough space to fit the numbers in the given line. We will then just iterate over the line and fill in as necessary or return null if we hit an invalid cell state.
+            This takes O(lineSize) time.
+        </p>
+        <p>
+            If we have more space than is necessary and we have exactly 1 number in this (sub)line, we can instead solveNonExactRowOneNumber(). To do this we begin by getting all the already marked cells to get the first and last marked cell.
+            Because there is only one number, we have to make sure both the number can fit completely in the range of already marked cells (with potential wiggle room) and there are no unmarked cells already inside the range.
+            After that, the main loop will iterate over each cell to try to fit the number in. If the cell is out of range, we can update the cell on the return line. If it is in range, we update a count to show if we've hit enough spots to fully position the number there.
+            If we hit an unmarked cell before that count hits the number, we know that those cells must be unmarked. If we have hit that count, those cells could be marked. We then start the count over. Then we have buckets that we use to update the rest of the cells on the returned line as either unmarked, marked, or potentially marked.
+            This piece could probably be improved by limiting the number of times we iterate over the line. The algorithm runs at O(lineSize) but has a high multiplier because of the number of iterations. The main check in particular is probably too inefficient because we can simply check down from the first marked cell or up from the last marked cell to get the range that this number could fit in (though if a line is fully unsolved I guess this gets fuzzier).
+        </p>
+        <p>
+            Finally, if there are multiple numbers and they could shift around (most of the time), we will take the first number and each spot it could fit in, then attempt to add on the smaller puzzle using the second through last numbers and the piece of the line that comes after the first number. This is where recording subproblems comes in handy because we could potentially come back to the same problem (and its subproblems) multiple times, especially if a subline has not made progress (such as getting a marked or unmarked cell in the beginning of the line).
+        </p>
+    </div>
+    <div id="BoardReaderText" class="mainSection">
+        <h1>Text Reader</h1>
+        <p>
+            The text reader is similar to a lot of quick and dirty programs you'd write for <a href="https://icpc.baylor.edu/">ACM</a>. The first line takes in two integers n and m for the number of rows and columns in a puzzle. The next n and m lines each take in a first integer i for the number of "numbers" in that row/column. The next i integers are those numbers in order for that row/column.
+        </p>
+    </div>
+    <div>
+        <h1>Future enhancements</h1>
+        <p>Here is a list of small enhancements that would improve this project:</p>
+        <ul>
+            <li>Make the queue only accept rows/columns if they aren't already in the queue</li>
+            <li>Finish the unit tests</li>
+            <li>Make sure this project works for non-square boards (in unit tests)</li>
+            <li>Coding style could be looked at (for example, rowQueueObject should be capitalized and potentially renamed)</li>
+            <li>Rename the Row class</li>
+            <li>Make a better toString display for a board that would also show the numbers for each row/column and space things nicely</li>
+            <li>Add other ways to import and display boards, maybe pull puzzles from websites</li>
+        </ul>
+    </div>
+</body>
+</html>
